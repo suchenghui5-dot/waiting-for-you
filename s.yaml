@@ -1,5 +1,20 @@
 edition: 1.0.0
 name: waiting-for-you
+access: default
+
 services:
-  static:
-    component: static
+  website:
+    component: fc
+    props:
+      region: cn-hangzhou
+      serviceName: waiting-for-you
+      functionName: web
+      runtime: nodejs16
+      handler: index.handler
+      memorySize: 128
+      timeout: 30
+      triggers:
+        - type: http
+          props:
+            authType: anonymous
+            methods: [GET, POST]
