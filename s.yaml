@@ -1,24 +1,15 @@
-# s.yaml - 阿里云 Serverless 部署配置
 edition: 1.0.0
-name: waiting-for-you-app  # 随便起个应用名
+name: waiting-for-you
 access: default
 
 services:
-  web:
-    component: fc
+  hosting:
+    component: static-hosting
     props:
-      region: cn-hangzhou
-      serviceName: waiting-for-you-service
-      functionName: web
-      runtime: nodejs18
-      codeUri: ./
-      handler: index.handler
-      memorySize: 128
-      timeout: 30
-      triggers:
-        - type: http
-          props:
-            authType: anonymous
-            methods:
-              - GET
-              - POST
+      domain:
+        - name: auto
+      src:
+        codeUri: ./
+        publishDir: ./
+      index: index.html
+      error: index.html
