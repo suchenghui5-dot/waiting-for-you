@@ -7,6 +7,16 @@ import { calculateGardenStage } from './garden-stage';
 
 const STORAGE_KEY = 'waiting-for-you-garden';
 
+export interface TestProgress {
+  section: 'big-five' | 'ecrr' | 'raven';
+  qIndex: number;
+  answers: {
+    bigFive: Record<number, number>;
+    ecrr: Record<number, number>;
+    raven: Record<number, number>;
+  };
+}
+
 export interface GardenData {
   growthMinutes: number;
   lastActiveDate: string | null;   // YYYY-MM-DD
@@ -16,6 +26,8 @@ export interface GardenData {
   todaySeconds: number;            // 今日已累计秒数
   dailyCap: number;                // 每日上限（秒）, 默认 14400 (4h)
   name: string;
+  testProgress: TestProgress | null; // 测评进度（可暂停恢复）
+  testCompleted: boolean;           // 是否完成过测评
 }
 
 function defaultGarden(): GardenData {
@@ -28,6 +40,8 @@ function defaultGarden(): GardenData {
     todaySeconds: 0,
     dailyCap: 14400,
     name: '',
+    testProgress: null,
+    testCompleted: false,
   };
 }
 
@@ -115,4 +129,27 @@ export function initGarden(name: string): GardenData {
   };
   saveGarden(data);
   return data;
+}
+
+/** 保存测评进度（暂停时调用） */
+export function saveTestProgress(progress: TestProgress): void {
+  const data = loadGarden();
+  data.testProgress = progress;
+  saveGarden(data);
+}
+
+/** 清除测评进度 */
+export function clearTestProgress(): void {
+  const data = loadGarden();
+  data.testProgress = null;
+  saveGarden(data);
+}
+
+/** 标记测评完成 */
+export function markTestCompleted(): void {
+  const data = loadGarden();
+  data.testProgress = null;
+  data.testCompleted = true;
+  data.growthMinutes += 60; // 完成奖励
+  saveGarden(data);
 }
