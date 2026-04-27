@@ -50,8 +50,12 @@ export default function QuestionsPage() {
   const [done, setDone] = useState(false);
   const [garden, setGarden] = useState(loadGarden());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const questionStartRef = useRef<number>(Date.now()); // C5：记录每题的开始时间
 
-  // 未答题列表
+  // 切换题目时重置计时
+  useEffect(() => {
+    questionStartRef.current = Date.now();
+  }, [currentIndex]);
   const unanswered = QUESTIONS.filter(
     (q) => !garden.answeredQuestions.includes(q.id)
   );
@@ -71,11 +75,25 @@ export default function QuestionsPage() {
     textareaRef.current?.focus();
   }, [currentIndex]);
 
+  // 防作弊 C2：切走后重置计时，防止后台答题
+  useEffect(() => {
+    const onVisibility = () => {
+      if (!document.hidden) {
+        questionStartRef.current = Date.now();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
   const handleSubmit = async () => {
     if (!current || !answer.trim() || submitting) return;
 
-    // 防作弊 C5：答题间隔 >= 3 秒（简单检查）
-    // 不需要在这里做，heartbeat 里已经处理了
+    // 防作弊 C5：每题至少停留 3 秒
+    const elapsed = (Date.now() - questionStartRef.current) / 1000;
+    if (elapsed < 3) {
+      await new Promise((r) => setTimeout(r, (3 - elapsed) * 1000));
+    }
 
     setSubmitting(true);
 

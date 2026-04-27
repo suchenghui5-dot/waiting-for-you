@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { initGarden } from '@/lib/garden-store';
+import { initGarden, registerSharedUser } from '@/lib/garden-store';
 
 const STEPS = [
   {
@@ -172,8 +172,9 @@ export default function GuidePage() {
   // 仪式动画完成后自动跳转
   useEffect(() => {
     if (isCeremony) {
-      // 初始化花园数据
-      initGarden(name);
+      // 初始化花园数据 + 注册到共享用户列表
+      const userId = registerSharedUser(name);
+      initGarden(name, userId);
 
       const timer = setTimeout(() => {
         router.push('/garden');

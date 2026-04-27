@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   loadGarden,
+  saveGarden,
   addGrowthTime,
   getGardenDisplay,
+  getCurrentMatch,
   type GardenData,
 } from '@/lib/garden-store';
 
@@ -23,44 +25,111 @@ export default function GardenPage() {
   const router = useRouter();
   const [data, setData] = useState<GardenData | null>(null);
   const [elapsed, setElapsed] = useState(0); // 本次会话累积秒数
+  const [currentMatch, setCurrentMatch] = useState(getCurrentMatch(null));
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // 加载数据
+  // 加载数据 & 记录会话开始
   useEffect(() => {
     const d = loadGarden();
+    // C3：记录本次会话开始时间
+    if (!d.sessionStart) {
+      d.sessionStart = Date.now();
+      saveGarden(d);
+    }
     setData(d);
+    if (d.userId) {
+      setCurrentMatch(getCurrentMatch(d.userId));
+    }
   }, []);
 
-  // 心跳：每 30 秒计一次活跃时间
+  // C7：跨标签检测——用 localStorage 广播活跃状态
+  useEffect(() => {
+    if (!data) return;
+    const TAB_KEY = 'waiting-for-you-active-tab';
+    localStorage.setItem(TAB_KEY, Date.now().toString());
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === TAB_KEY && e.newValue && e.oldValue) {
+        const otherTabTime = parseInt(e.newValue);
+        const myTime = parseInt(e.oldValue);
+        // 另一个标签在 5 秒内有更新，说明多标签同时在线
+        if (Math.abs(otherTabTime - myTime) < 10000) {
+          // 简单处理：暂停本标签的心跳，让另一个标签继续
+          if (heartbeatRef.current) {
+            clearInterval(heartbeatRef.current);
+            heartbeatRef.current = null;
+          }
+        }
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [!!data]);
+
+  // 心跳：每 30 秒计一次活跃时间（含防作弊）
   useEffect(() => {
     if (!data) return;
 
-    heartbeatRef.current = setInterval(() => {
-      setData((prev) => {
-        if (!prev) return prev;
-        // 防作弊 C1：检查是否在 2 秒内重复心跳
-        const now = Date.now();
-        if (prev.lastHeartbeat && now - prev.lastHeartbeat < 2000) {
-          return prev; // 跳过
-        }
-        // 防作弊 C6：检查日上限
-        if (prev.todaySeconds >= prev.dailyCap) {
-          return prev; // 今天已满
-        }
-        return addGrowthTime(prev, 30);
-      });
-      setElapsed((e) => e + 30);
-    }, 30000);
+    const MAX_SESSION_MS = 2 * 60 * 60 * 1000; // C3：最长连续会话 2 小时
 
-    // 本地秒数计时（实时展示）
-    tickRef.current = setInterval(() => {
-      setElapsed((e) => e + 1);
-    }, 1000);
+    const canGrow = (prev: GardenData): boolean => {
+      const now = Date.now();
+      // C1：间隔 >= 2 秒
+      if (prev.lastHeartbeat && now - prev.lastHeartbeat < 2000) return false;
+      // C6：日上限
+      if (prev.todaySeconds >= prev.dailyCap) return false;
+      // C3：会话时长限制（防挂机）
+      if (prev.sessionStart && now - prev.sessionStart > MAX_SESSION_MS) return false;
+      return true;
+    };
+
+    const startHeartbeat = () => {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      heartbeatRef.current = setInterval(() => {
+        setData((prev) => {
+          if (!prev) return prev;
+          if (!canGrow(prev)) return prev;
+          return addGrowthTime(prev, 30);
+        });
+        setElapsed((e) => e + 30);
+      }, 30000);
+    };
+
+    const startTick = () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+      tickRef.current = setInterval(() => {
+        setElapsed((e) => e + 1);
+      }, 1000);
+    };
+
+    // C2：标签页可见性
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        // 切走：暂停所有计时
+        if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
+        if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+      } else {
+        // 切回：重置会话计时器
+        setData((prev) => {
+          if (!prev) return prev;
+          prev.sessionStart = Date.now();
+          saveGarden(prev);
+          return { ...prev };
+        });
+        startHeartbeat();
+        startTick();
+      }
+    };
+
+    startHeartbeat();
+    startTick();
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
       if (tickRef.current) clearInterval(tickRef.current);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [!!data]);
 
@@ -253,6 +322,23 @@ export default function GardenPage() {
           </div>
         </div>
 
+        {/* 故事画板 — 始终可用 */}
+        <button
+          onClick={() => router.push('/garden/canvas')}
+          className="w-full garden-card text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📖</span>
+            <div className="flex-1">
+              <p className="text-ink-black text-sm font-medium">故事画板</p>
+              <p className="text-ink-light text-xs mt-0.5">
+                记录你的花园日记 · 查看成长里程碑
+              </p>
+            </div>
+            <span className="text-ink-light text-lg">→</span>
+          </div>
+        </button>
+
         {/* 本周匹配 — 花开后解锁 */}
         <div
           className={`w-full garden-card text-left ${
@@ -260,31 +346,70 @@ export default function GardenPage() {
               ? 'opacity-40 cursor-not-allowed'
               : 'hover:shadow-md transition-shadow cursor-pointer'
           }`}
-          onClick={() => isBloomed && router.push('/garden/match')}
+          onClick={() => {
+            if (!isBloomed) return;
+            if (currentMatch?.status === 'mutual') {
+              router.push('/garden/chat');
+            } else {
+              router.push('/garden/match');
+            }
+          }}
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">💌</span>
             <div className="flex-1">
               <p className="text-ink-black text-sm font-medium">本周匹配</p>
-              <p className="text-ink-light text-xs mt-0.5">
+              <p className={`text-xs mt-0.5 ${
+                currentMatch?.status === 'mutual' ? 'text-seal-red' :
+                currentMatch?.status === 'accepted' ? 'text-garden-bloom' :
+                currentMatch?.status === 'pending' ? 'text-sky-blue' :
+                'text-ink-light'
+              }`}>
                 {!isBloomed
                   ? `花开后才能匹配 · 还需 ${Math.max(0, 720 - data.growthMinutes)} 分钟生长`
-                  : '查看本周围你匹配的人'}
+                  : !currentMatch
+                  ? '等待创始人匹配中...'
+                  : currentMatch.status === 'mutual'
+                  ? `✅ 匹配成功！与 ${currentMatch.matchedUserName} 双向确认`
+                  : currentMatch.status === 'accepted'
+                  ? `已接受 · 等待 ${currentMatch.matchedUserName} 的回应`
+                  : currentMatch.status === 'skipped'
+                  ? '已跳过 · 等待下一次匹配'
+                  : `来自创始人的匹配 · 查看详情`}
               </p>
             </div>
             <span className="text-ink-light text-lg">
               {isBloomed ? '→' : '🔒'}
             </span>
           </div>
+          {/* 匹配进度指示 */}
+          {currentMatch && currentMatch.status === 'pending' && (
+            <div className="mt-2 flex gap-1">
+              <div className="h-1 flex-1 rounded-full bg-sky-blue animate-pulse" />
+              <div className="h-1 flex-1 rounded-full bg-paper-aged" />
+            </div>
+          )}
+          {currentMatch && currentMatch.status === 'mutual' && (
+            <div className="mt-2 flex gap-1">
+              <div className="h-1 flex-1 rounded-full bg-seal-red" />
+              <div className="h-1 flex-1 rounded-full bg-seal-red" />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 防作弊说明 — 小字 */}
-      <div className="px-6 mt-6 text-center">
+      {/* 防作弊状态 — 小字 */}
+      <div className="px-6 mt-6 text-center space-y-1">
         <p className="text-ink-light text-xs leading-relaxed">
           浏览花园会自动累积生长时间
           <br />
-          每日最多生长 4 小时 · 快速操作不计时
+          每日最多生长 4 小时 · 快速操作不计时 · 切走后暂停
+        </p>
+        <p className="text-[10px] text-ink-light">
+          今日已生长 {Math.floor(data.todaySeconds / 60)} 分钟
+          {data.sessionStart && Date.now() - data.sessionStart > 2 * 60 * 60 * 1000
+            ? ' · 会话超时，请刷新页面继续'
+            : ''}
         </p>
       </div>
     </main>

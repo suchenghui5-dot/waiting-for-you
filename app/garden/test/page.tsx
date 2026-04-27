@@ -79,6 +79,7 @@ export default function PersonalityTestPage() {
   const [animating, setAnimating] = useState(false);
   const [testProgress, setTestProgress] = useState(0);
   const [attentionFails, setAttentionFails] = useState(0);
+  const questionStartRef = useRef(Date.now()); // C5：每题最短作答时间
 
   // 检查是否有未完成的测评
   const [hasResume, setHasResume] = useState(false);
@@ -87,6 +88,17 @@ export default function PersonalityTestPage() {
     if (g.testProgress && !g.testCompleted) {
       setHasResume(true);
     }
+  }, []);
+
+  // C2：切走后重置计时，防止后台秒选
+  useEffect(() => {
+    const onVisibility = () => {
+      if (!document.hidden) {
+        questionStartRef.current = Date.now();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   // 构建问题列表
@@ -142,6 +154,13 @@ export default function PersonalityTestPage() {
   // 作答
   const handleAnswer = useCallback((value: number) => {
     if (!currentQ || animating) return;
+    // C5：每题最少停留 1.5 秒（Likert 选择比打字快）
+    const elapsed = (Date.now() - questionStartRef.current) / 1000;
+    if (elapsed < 1.5) {
+      return; // 太快了，忽略本次选择
+    }
+    questionStartRef.current = Date.now();
+
     setAnimDir('next');
     setAnimating(true);
 
@@ -154,7 +173,12 @@ export default function PersonalityTestPage() {
     // 先计算更新后的答案（同步计算，避免 setAnswers 异步问题）
     const updatedAnswers = (() => {
       if (currentQ.isAttentionCheck) return answers;
-      const key = currentQ.type;
+      const sectionMap: Record<string, 'bigFive' | 'ecrr' | 'raven'> = {
+        'big-five': 'bigFive',
+        ecrr: 'ecrr',
+        raven: 'raven',
+      };
+      const key = sectionMap[currentQ.type];
       return { ...answers, [key]: { ...answers[key], [currentQ.sourceId]: value } };
     })();
     setAnswers(updatedAnswers);
