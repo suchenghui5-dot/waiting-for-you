@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { initGarden } from '@/lib/garden-store';
 
 const STEPS = [
   {
@@ -171,12 +172,15 @@ export default function GuidePage() {
   // 仪式动画完成后自动跳转
   useEffect(() => {
     if (isCeremony) {
+      // 初始化花园数据
+      initGarden(name);
+
       const timer = setTimeout(() => {
         router.push('/garden');
       }, 4000);
       return () => clearTimeout(timer);
     }
-  }, [isCeremony, router]);
+  }, [isCeremony, name, router]);
 
   // 触摸滑动支持
   const handleTouchStart = (e: React.TouchEvent) => {
