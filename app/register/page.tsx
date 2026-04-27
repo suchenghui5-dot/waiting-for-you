@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [step, setStep] = useState<'invite' | 'phone' | 'otp'>('invite');
   const [inviteCode, setInviteCode] = useState('');
   const [phone, setPhone] = useState('');
@@ -32,8 +34,22 @@ export default function RegisterPage() {
       return;
     }
 
-    // TODO: 发送 OTP
+    // TODO: 发送 OTP — 对接 Supabase Auth
     setStep('otp');
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (otp.length !== 6) {
+      setError('请输入6位验证码');
+      return;
+    }
+
+    // TODO: 验证 OTP — 对接 Supabase Auth
+    // 注册完成，跳转引导页
+    router.push('/guide');
   };
 
   return (
@@ -111,7 +127,7 @@ export default function RegisterPage() {
         )}
 
         {step === 'otp' && (
-          <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+          <form onSubmit={handleOtpSubmit} className="space-y-6">
             <div className="text-center space-y-2">
               <h2 className="text-lg font-medium text-ink-black">输入验证码</h2>
               <p className="text-sm text-ink-gray">
