@@ -1,15 +1,5 @@
 edition: 1.0.0
 name: waiting-for-you
-access: default
-
 services:
-  hosting:
-    component: static-hosting
-    props:
-      domain:
-        - name: auto
-      src:
-        codeUri: ./
-        publishDir: ./
-      index: index.html
-      error: index.html
+  static:
+    component: static
