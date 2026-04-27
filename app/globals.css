@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* 楷体字体声明 — 本地托管 fallback 链 */
+  @font-face {
+    font-family: 'STKaiti';
+    src: local('STKaiti'), local('KaiTi');
+    font-display: swap;
+  }
+}
+
+@layer components {
+  .garden-card {
+    @apply bg-paper-cream rounded-garden p-6 shadow-sm border border-paper-aged;
+  }
+
+  .btn-primary {
+    @apply bg-ink-black text-paper-white rounded-petal py-3 px-6 font-medium
+           active:bg-seal-red transition-colors duration-200;
+  }
+
+  .btn-secondary {
+    @apply border border-ink-light text-ink-black rounded-petal py-3 px-6 font-medium
+           active:border-ink-gray transition-colors duration-200;
+  }
+
+  .btn-seal {
+    @apply bg-seal-red text-white rounded-petal py-3 px-6 font-medium
+           active:bg-seal-dark transition-colors duration-200;
+  }
+
+  .input-field {
+    @apply w-full bg-paper-white border border-paper-aged rounded-petal px-4 py-3
+           text-ink-black placeholder:text-ink-light
+           focus:outline-none focus:border-sky-blue transition-colors duration-200;
+  }
+}
