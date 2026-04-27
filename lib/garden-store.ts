@@ -28,6 +28,10 @@ export interface GardenData {
   name: string;
   testProgress: TestProgress | null; // 测评进度（可暂停恢复）
   testCompleted: boolean;           // 是否完成过测评
+  photoDataUrl: string | null;      // 照片 base64
+  photoPromise: boolean;            // 是否勾选真实承诺
+  hasBadge: boolean;                // 是否获得徽章
+  badges: { type: string; label: string; earnedAt: string }[];
 }
 
 function defaultGarden(): GardenData {
@@ -42,6 +46,10 @@ function defaultGarden(): GardenData {
     name: '',
     testProgress: null,
     testCompleted: false,
+    photoDataUrl: null,
+    photoPromise: false,
+    hasBadge: false,
+    badges: [],
   };
 }
 

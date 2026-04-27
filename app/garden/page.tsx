@@ -209,6 +209,25 @@ export default function GardenPage() {
           </div>
         </button>
 
+        {/* 真实照片 — 始终可用 */}
+        <button
+          onClick={() => router.push('/garden/photo')}
+          className="w-full garden-card text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📸</span>
+            <div className="flex-1">
+              <p className="text-ink-black text-sm font-medium">真实照片</p>
+              <p className="text-ink-light text-xs mt-0.5">
+                {data.photoPromise
+                  ? '✅ 已上传 · 已获得「真实承诺」徽章'
+                  : '上传真实照片 · 获得「真实承诺」徽章'}
+              </p>
+            </div>
+            <span className="text-ink-light text-lg">→</span>
+          </div>
+        </button>
+
         {/* 人格测评 — 完成 3 必答后解锁 */}
         <div
           className={`w-full garden-card text-left ${
