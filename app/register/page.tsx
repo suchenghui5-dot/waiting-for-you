@@ -47,8 +47,8 @@ export default function RegisterPage() {
       return;
     }
 
-    // TODO: 验证 OTP — 对接 Supabase Auth
-    // 注册完成，跳转引导页
+    // 测试模式：任意验证码通过，保存手机号到 sessionStorage
+    sessionStorage.setItem('waiting-for-you-reg-phone', phone);
     router.push('/guide');
   };
 

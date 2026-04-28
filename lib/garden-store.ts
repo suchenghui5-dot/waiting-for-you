@@ -28,6 +28,7 @@ export interface GardenData {
   sessionStart: number | null;     // 本次会话开始时间戳（C3 防连续挂机）
   name: string;
   userId: string;                  // 匹配系统用户 ID
+  phone: string;                   // 手机号，用于登录查找
   testProgress: TestProgress | null; // 测评进度（可暂停恢复）
   testCompleted: boolean;           // 是否完成过测评
   photoDataUrl: string | null;      // 照片 base64
@@ -68,6 +69,7 @@ function defaultGarden(): GardenData {
     sessionStart: null,
     name: '',
     userId: '',
+    phone: '',
     testProgress: null,
     testCompleted: false,
     photoDataUrl: null,
@@ -102,6 +104,105 @@ export function loadGarden(): GardenData {
 export function saveGarden(data: GardenData): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  // 同时持久化到用户集合，跨会话保留
+  if (data.userId) {
+    localStorage.setItem(USER_COLLECTION_PREFIX + data.userId, JSON.stringify(data));
+  }
+}
+
+// ─── 用户会话管理（测试模式：localStorage 多用户） ───
+
+const USER_COLLECTION_PREFIX = 'waiting-for-you-garden-user-';
+const PHONE_MAP_KEY = 'waiting-for-you-phone-map';
+
+/** 注册新用户 */
+export function registerAndLogin(name: string, phone: string): GardenData {
+  const id = 'user_' + Date.now();
+  const today = new Date().toISOString().slice(0, 10);
+  const data: GardenData = {
+    ...defaultGarden(),
+    name,
+    phone,
+    userId: id,
+    lastActiveDate: today,
+    activeDays: 1,
+  };
+  // 保存到当前会话
+  saveGarden(data);
+  // 保存到用户集合
+  localStorage.setItem(USER_COLLECTION_PREFIX + id, JSON.stringify(data));
+  // 保存手机号映射
+  const phoneMap = JSON.parse(localStorage.getItem(PHONE_MAP_KEY) || '{}');
+  phoneMap[phone] = id;
+  localStorage.setItem(PHONE_MAP_KEY, JSON.stringify(phoneMap));
+  // 注册共享用户
+  registerSharedUser(name, phone, id);
+  return data;
+}
+
+/** 手机号登录 */
+export function loginByPhone(phone: string): GardenData | null {
+  const phoneMap = JSON.parse(localStorage.getItem(PHONE_MAP_KEY) || '{}');
+  const userId = phoneMap[phone];
+  if (!userId) return null;
+  const raw = localStorage.getItem(USER_COLLECTION_PREFIX + userId);
+  if (!raw) return null;
+  const data = JSON.parse(raw) as GardenData;
+  // 同步到当前会话
+  saveGarden(data);
+  return data;
+}
+
+/** 注销（保存到用户集合，清空当前会话） */
+export function logoutUser(): void {
+  const data = loadGarden();
+  if (data.userId) {
+    localStorage.setItem(USER_COLLECTION_PREFIX + data.userId, JSON.stringify(data));
+  }
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+/** 切换用户（保存当前，加载目标） */
+export function switchToUser(userId: string): GardenData | null {
+  const current = loadGarden();
+  if (current.userId) {
+    localStorage.setItem(USER_COLLECTION_PREFIX + current.userId, JSON.stringify(current));
+  }
+  const raw = localStorage.getItem(USER_COLLECTION_PREFIX + userId);
+  if (!raw) return null;
+  const data = JSON.parse(raw) as GardenData;
+  saveGarden(data);
+  return data;
+}
+
+/** 获取所有已注册用户（用于切换） */
+export function getAllUsers(): SharedUserData[] {
+  return loadSharedUsers();
+}
+
+// 修改 registerSharedUser 接受 phone 和 id 参数
+/** 注册时同步用户到共享数据 */
+export function registerSharedUser(name: string, phone?: string, id?: string): string {
+  const users = loadSharedUsers();
+  const userId = id || 'user_' + Date.now();
+  users.push({
+    id: userId,
+    name,
+    phone: phone || '',
+    coolingCompleted: false,
+    coolingMinutes: 0,
+    activeDays: 1,
+    answeredCount: 0,
+    testCompleted: false,
+    photoDataUrl: null,
+    hasBadge: false,
+    badges: [],
+    city: '',
+    bio: '正在了解自己。',
+    matchId: null,
+  });
+  saveSharedUsers(users);
+  return userId;
 }
 
 /** 累计生长分钟数 */
@@ -189,6 +290,7 @@ const SHARED_KEY = 'waiting-for-you-shared';
 export interface SharedUserData {
   id: string;
   name: string;
+  phone: string;
   coolingCompleted: boolean;
   coolingMinutes: number;
   activeDays: number;
@@ -213,29 +315,6 @@ export function loadSharedUsers(): SharedUserData[] {
 function saveSharedUsers(users: SharedUserData[]): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(SHARED_KEY, JSON.stringify(users));
-}
-
-/** 注册时同步用户到共享数据 */
-export function registerSharedUser(name: string): string {
-  const users = loadSharedUsers();
-  const id = 'user_' + Date.now();
-  users.push({
-    id,
-    name,
-    coolingCompleted: false,
-    coolingMinutes: 0,
-    activeDays: 1,
-    answeredCount: 0,
-    testCompleted: false,
-    photoDataUrl: null,
-    hasBadge: false,
-    badges: [],
-    city: '',
-    bio: '正在了解自己。',
-    matchId: null,
-  });
-  saveSharedUsers(users);
-  return id;
 }
 
 /** 获取所有已开花的用户（可匹配） */

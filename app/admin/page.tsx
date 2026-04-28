@@ -6,8 +6,14 @@ import {
   createMatch,
   getCurrentMatch,
   confirmMutual,
+  switchToUser,
+  logoutUser,
+  saveGarden,
+  loadGarden,
+  getAllUsers,
   type SharedUserData,
   type MatchData,
+  type GardenData,
 } from '@/lib/garden-store';
 import { getNextDefaultQuestion } from '@/lib/icebreaker';
 
@@ -63,6 +69,11 @@ function AdminDashboard() {
   const [icebreaker, setIcebreaker] = useState('');
   const [matchResult, setMatchResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('users');
+  const [currentUserName, setCurrentUserName] = useState('');
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [bloomTarget, setBloomTarget] = useState<string>('');
+  const [quickMatchA, setQuickMatchA] = useState<string>('');
+  const [quickMatchB, setQuickMatchB] = useState<string>('');
 
   const loadUsers = useCallback(() => {
     setUsers(loadSharedUsers());
@@ -70,6 +81,9 @@ function AdminDashboard() {
 
   useEffect(() => {
     loadUsers();
+    // 显示当前登录用户
+    const cur = loadGarden();
+    if (cur.name) setCurrentUserName(cur.name);
   }, [loadUsers]);
 
   // 自动刷新（每 3 秒）
@@ -150,6 +164,170 @@ function AdminDashboard() {
             <p className="text-ink-light text-xs mb-1">双向确认</p>
             <p className="text-xl font-medium text-seal-red">{mutualCount}</p>
           </div>
+        </div>
+
+        {/* ═══ 测试模式：用户切换 ═══ */}
+        <div className="garden-card mb-6 border-2 border-dashed border-garden-bloom/30">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-garden-bloom">🧪 测试模式</h3>
+            <span className="text-[10px] text-ink-light bg-paper-cream px-2 py-0.5 rounded-full">开发用</span>
+          </div>
+
+          {/* 当前用户 */}
+          <div className="flex items-center justify-between bg-paper-cream rounded-petal px-4 py-2 mb-3">
+            <span className="text-xs text-ink-light">当前登录：</span>
+            <span className="text-sm font-medium text-ink-black">
+              {currentUserName || '未登录'}
+            </span>
+          </div>
+
+          {/* 用户切换 */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {users.map((u) => (
+              <button
+                key={u.id}
+                onClick={() => {
+                  const data = switchToUser(u.id);
+                  if (data) {
+                    setCurrentUserName(data.name);
+                    setTestResult({ ok: true, msg: `已切换到用户：${data.name}` });
+                    setTimeout(() => setTestResult(null), 2000);
+                  }
+                }}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  currentUserName === u.name
+                    ? 'bg-garden-bloom text-white border-garden-bloom'
+                    : 'bg-white text-ink-black border-paper-aged hover:border-garden-bloom'
+                }`}
+              >
+                {u.name}
+              </button>
+            ))}
+            {users.length === 0 && (
+              <p className="text-xs text-ink-light">暂无用户</p>
+            )}
+          </div>
+
+          {/* 快速工具 */}
+          <div className="grid grid-cols-2 gap-2">
+            {/* 强制开花 */}
+            <div className="flex gap-1">
+              <select
+                value={bloomTarget}
+                onChange={(e) => setBloomTarget(e.target.value)}
+                className="text-[10px] border border-paper-aged rounded-petal px-2 py-1 flex-1 bg-white"
+              >
+                <option value="">选择用户...</option>
+                {users.filter((u) => !u.coolingCompleted).map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => {
+                  if (!bloomTarget) return;
+                  const all = loadSharedUsers();
+                  const target = all.find((u) => u.id === bloomTarget);
+                  if (target) {
+                    target.coolingCompleted = true;
+                    target.coolingMinutes = 720;
+                    const key = 'waiting-for-you-shared';
+                    localStorage.setItem(key, JSON.stringify(all));
+                    // 同步 garden 数据
+                    const gKey = 'waiting-for-you-garden-user-' + bloomTarget;
+                    const gRaw = localStorage.getItem(gKey);
+                    if (gRaw) {
+                      const g = JSON.parse(gRaw);
+                      g.growthMinutes = 720;
+                      g.activeDays = 5;
+                      localStorage.setItem(gKey, JSON.stringify(g));
+                    }
+                    loadUsers();
+                    setTestResult({ ok: true, msg: `${target.name} 已开花 🌻` });
+                    setTimeout(() => setTestResult(null), 2000);
+                  }
+                }}
+                className="text-[10px] bg-garden-bloom text-white px-3 py-1 rounded-full hover:opacity-80 whitespace-nowrap"
+              >
+                强制开花
+              </button>
+            </div>
+
+            {/* 快速匹配 */}
+            <div className="flex gap-1">
+              <select
+                value={quickMatchA}
+                onChange={(e) => setQuickMatchA(e.target.value)}
+                className="text-[10px] border border-paper-aged rounded-petal px-2 py-1 flex-1 bg-white"
+              >
+                <option value="">用户 A...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+              <select
+                value={quickMatchB}
+                onChange={(e) => setQuickMatchB(e.target.value)}
+                className="text-[10px] border border-paper-aged rounded-petal px-2 py-1 flex-1 bg-white"
+              >
+                <option value="">用户 B...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 执行快速匹配 */}
+          {quickMatchA && quickMatchB && quickMatchA !== quickMatchB && (
+            <button
+              onClick={() => {
+                // 先强制双方开花
+                const all = loadSharedUsers();
+                const uA = all.find((u) => u.id === quickMatchA);
+                const uB = all.find((u) => u.id === quickMatchB);
+                if (!uA || !uB) return;
+                uA.coolingCompleted = true;
+                uA.coolingMinutes = 720;
+                uB.coolingCompleted = true;
+                uB.coolingMinutes = 720;
+                const key = 'waiting-for-you-shared';
+                localStorage.setItem(key, JSON.stringify(all));
+
+                // 同步 garden 数据
+                [quickMatchA, quickMatchB].forEach((uid) => {
+                  const gKey = 'waiting-for-you-garden-user-' + uid;
+                  const gRaw = localStorage.getItem(gKey);
+                  if (gRaw) {
+                    const g = JSON.parse(gRaw);
+                    g.growthMinutes = 720;
+                    g.activeDays = 5;
+                    localStorage.setItem(gKey, JSON.stringify(g));
+                  }
+                });
+
+                // 执行匹配
+                const result = createMatch(quickMatchA, quickMatchB, '测试匹配', getNextDefaultQuestion());
+                if (result) {
+                  loadUsers();
+                  setTestResult({ ok: true, msg: `🧪 测试匹配成功！${uA.name} ↔ ${uB.name}` });
+                  setQuickMatchA('');
+                  setQuickMatchB('');
+                  setTimeout(() => setTestResult(null), 3000);
+                } else {
+                  setTestResult({ ok: false, msg: '匹配失败' });
+                }
+              }}
+              className="mt-2 w-full text-xs bg-sky-blue text-white py-2 rounded-petal hover:opacity-80"
+            >
+              🧪 快速测试匹配
+            </button>
+          )}
+
+          {testResult && (
+            <p className={`mt-2 text-xs ${testResult.ok ? 'text-garden-leaf' : 'text-seal-red'}`}>
+              {testResult.msg}
+            </p>
+          )}
         </div>
 
         {/* Tab 导航 */}

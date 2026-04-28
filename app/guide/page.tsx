@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { initGarden, registerSharedUser } from '@/lib/garden-store';
+import { registerAndLogin } from '@/lib/garden-store';
 
 const STEPS = [
   {
@@ -129,10 +129,17 @@ export default function GuidePage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [isCeremony, setIsCeremony] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
   const touchStart = useRef<number | null>(null);
+
+  // 从注册页读取手机号
+  useEffect(() => {
+    const saved = sessionStorage.getItem('waiting-for-you-reg-phone');
+    if (saved) setPhone(saved);
+  }, []);
 
   const isStep4 = currentStep === 3; // 输入姓名步骤
   const isLastStep = currentStep === STEPS.length - 1;
@@ -172,16 +179,16 @@ export default function GuidePage() {
   // 仪式动画完成后自动跳转
   useEffect(() => {
     if (isCeremony) {
-      // 初始化花园数据 + 注册到共享用户列表
-      const userId = registerSharedUser(name);
-      initGarden(name, userId);
+      // 创建用户并登录
+      registerAndLogin(name, phone || name);
 
       const timer = setTimeout(() => {
+        sessionStorage.removeItem('waiting-for-you-reg-phone');
         router.push('/garden');
       }, 4000);
       return () => clearTimeout(timer);
     }
-  }, [isCeremony, name, router]);
+  }, [isCeremony, name, phone, router]);
 
   // 触摸滑动支持
   const handleTouchStart = (e: React.TouchEvent) => {

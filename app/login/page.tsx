@@ -1,13 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { loginByPhone } from '@/lib/garden-store';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,8 +22,34 @@ export default function LoginPage() {
       return;
     }
 
-    // TODO: 发送 OTP
+    // 测试模式：直接进入 OTP 步骤
     setStep('otp');
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    if (otp.length !== 6) {
+      setError('请输入6位验证码');
+      setLoading(false);
+      return;
+    }
+
+    // 测试模式：任意 6 位验证码通过，按手机号登录
+    try {
+      const data = loginByPhone(phone);
+      if (data) {
+        router.push('/garden');
+      } else {
+        setError('该手机号尚未注册，请先注册');
+        setLoading(false);
+      }
+    } catch {
+      setError('登录失败，请重试');
+      setLoading(false);
+    }
   };
 
   return (
@@ -68,7 +98,7 @@ export default function LoginPage() {
         )}
 
         {step === 'otp' && (
-          <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+          <form onSubmit={handleOtpSubmit} className="space-y-6">
             <div className="text-center space-y-2">
               <h2 className="text-lg font-medium text-ink-black">输入验证码</h2>
               <p className="text-sm text-ink-gray">
@@ -84,14 +114,15 @@ export default function LoginPage() {
               className="input-field text-center text-lg tracking-[0.5em]"
               maxLength={6}
               autoFocus
+              disabled={loading}
             />
 
             {error && (
               <p className="text-seal-red text-sm text-center">{error}</p>
             )}
 
-            <button type="submit" className="btn-primary w-full">
-              登录
+            <button type="submit" className="btn-primary w-full" disabled={loading}>
+              {loading ? '登录中...' : '登录'}
             </button>
 
             <button
