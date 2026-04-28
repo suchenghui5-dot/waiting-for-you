@@ -143,7 +143,7 @@ export default function GardenPage() {
   }
 
   const garden = getGardenDisplay(data);
-  const isBloomed = data.growthMinutes >= 720 && data.activeDays >= 5;
+  const isBloomed = true; // 测试模式：强制开花，方便测试全部功能
   const todayRemaining = Math.max(0, data.dailyCap - data.todaySeconds);
   const answeredCount = data.answeredQuestions.length;
 
@@ -235,7 +235,7 @@ export default function GardenPage() {
           </div>
 
           {/* 本次会话计时 */}
-          {elapsed > 0 && !isBloomed && (
+          {elapsed > 0 && (
             <div className="mt-2 text-xs text-garden-sprout animate-fade-mist">
               本此生长 +{Math.floor(elapsed / 60)} 分钟
             </div>
@@ -297,30 +297,22 @@ export default function GardenPage() {
           </div>
         </button>
 
-        {/* 人格测评 — 完成 3 必答后解锁 */}
-        <div
-          className={`w-full garden-card text-left ${
-            answeredCount < 3
-              ? 'opacity-40 cursor-not-allowed'
-              : 'hover:shadow-md transition-shadow cursor-pointer'
-          }`}
-          onClick={() => answeredCount >= 3 && router.push('/garden/test')}
+        {/* 人格测评 — 测试模式：始终可用 */}
+        <button
+          onClick={() => router.push('/garden/test')}
+          className="w-full garden-card text-left hover:shadow-md transition-shadow cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">🧠</span>
             <div className="flex-1">
               <p className="text-ink-black text-sm font-medium">人格测评</p>
               <p className="text-ink-light text-xs mt-0.5">
-                {answeredCount < 3
-                  ? `完成 3 道必答问题后解锁（还差 ${3 - answeredCount} 题）`
-                  : '大五人格 + 依恋类型 · 了解自己的相处模式'}
+                大五人格 + 依恋类型 · 了解自己的相处模式
               </p>
             </div>
-            <span className="text-ink-light text-lg">
-              {answeredCount >= 3 ? '→' : '🔒'}
-            </span>
+            <span className="text-ink-light text-lg">→</span>
           </div>
-        </div>
+        </button>
 
         {/* 故事画板 — 始终可用 */}
         <button
@@ -339,21 +331,16 @@ export default function GardenPage() {
           </div>
         </button>
 
-        {/* 本周匹配 — 花开后解锁 */}
-        <div
-          className={`w-full garden-card text-left ${
-            !isBloomed
-              ? 'opacity-40 cursor-not-allowed'
-              : 'hover:shadow-md transition-shadow cursor-pointer'
-          }`}
+        {/* 本周匹配 — 测试模式：始终可用 */}
+        <button
           onClick={() => {
-            if (!isBloomed) return;
             if (currentMatch?.status === 'mutual') {
               router.push('/garden/chat');
             } else {
               router.push('/garden/match');
             }
           }}
+          className="w-full garden-card text-left hover:shadow-md transition-shadow cursor-pointer"
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">💌</span>
@@ -365,9 +352,7 @@ export default function GardenPage() {
                 currentMatch?.status === 'pending' ? 'text-sky-blue' :
                 'text-ink-light'
               }`}>
-                {!isBloomed
-                  ? `花开后才能匹配 · 还需 ${Math.max(0, 720 - data.growthMinutes)} 分钟生长`
-                  : !currentMatch
+                {!currentMatch
                   ? '等待创始人匹配中...'
                   : currentMatch.status === 'mutual'
                   ? `✅ 匹配成功！与 ${currentMatch.matchedUserName} 双向确认`
@@ -378,9 +363,7 @@ export default function GardenPage() {
                   : `来自创始人的匹配 · 查看详情`}
               </p>
             </div>
-            <span className="text-ink-light text-lg">
-              {isBloomed ? '→' : '🔒'}
-            </span>
+            <span className="text-ink-light text-lg">→</span>
           </div>
           {/* 匹配进度指示 */}
           {currentMatch && currentMatch.status === 'pending' && (
@@ -395,7 +378,7 @@ export default function GardenPage() {
               <div className="h-1 flex-1 rounded-full bg-seal-red" />
             </div>
           )}
-        </div>
+        </button>
       </div>
 
       {/* 防作弊状态 — 小字 */}
